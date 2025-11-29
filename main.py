@@ -11,7 +11,7 @@ import time
 
 load_dotenv()
 
-EMAIL = os.getenv("EMAIL") 
+EMAIL = os.getenv("EMAIL")
 SECRET = os.getenv("SECRET")
 
 app = FastAPI()
@@ -22,7 +22,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 START_TIME = time.time()
+
 @app.get("/healthz")
 def healthz():
     """Simple liveness check."""
@@ -37,25 +39,33 @@ async def solve(request: Request, background_tasks: BackgroundTasks):
         data = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
+
     if not data:
         raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    email = data.get("email")
     url = data.get("url")
     secret = data.get("secret")
-    if not url or not secret:
+
+    if not url or not secret or not email:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-    
+
     if secret != SECRET:
         raise HTTPException(status_code=403, detail="Invalid secret")
-    url_time.clear() 
-    BASE64_STORE.clear()  
-    print("Verified starting the task...")
+
+    # fresh state per task
+    url_time.clear()
+    BASE64_STORE.clear()
+
+    print(f"Verified secret. Starting task for {email} on URL: {url}")
     os.environ["url"] = url
     os.environ["offset"] = "0"
     url_time[url] = time.time()
+
     background_tasks.add_task(run_agent, url)
 
     return JSONResponse(status_code=200, content={"status": "ok"})
 
-
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    port = int(os.getenv("PORT", "7860"))
+    uvicorn.run(app, host="0.0.0.0", port=port)
